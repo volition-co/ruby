@@ -237,19 +237,18 @@ impl Opnd
     /// Convert an operand into RegMapping if it's Opnd::Stack
     pub fn get_reg_opnd(&self) -> Option<RegOpnd> {
         match *self {
-            Opnd::Stack { idx, stack_size, num_locals, .. } => Some(
+            Opnd::Stack { idx, stack_size, num_locals, .. } => {
                 if let Some(num_locals) = num_locals {
                     let last_idx = stack_size as i32 + VM_ENV_DATA_SIZE as i32 - 1;
                     assert!(last_idx <= idx, "Local index {} must be >= last local index {}", idx, last_idx);
                     assert!(idx <= last_idx + num_locals as i32, "Local index {} must be < last local index {} + local size {}", idx, last_idx, num_locals);
-                    // Indices that don't fit in u8 are capped to u8::MAX, which is greater than MAX_CTX_LOCALS.
                     let local_idx = last_idx + num_locals as i32 - idx;
-                    RegOpnd::Local(local_idx.try_into().unwrap_or(u8::MAX))
+                    Some(RegOpnd::Local(local_idx.try_into().ok()?))
                 } else {
                     assert!(idx < stack_size as i32);
-                    RegOpnd::Stack((stack_size as i32 - idx - 1) as u8)
+                    Some(RegOpnd::Stack((stack_size as i32 - idx - 1) as u8))
                 }
-            ),
+            }
             _ => None,
         }
     }
@@ -1217,11 +1216,12 @@ impl Assembler
 
         match opnd {
             Opnd::Stack { reg_mapping, .. } => {
-                if let Some(reg_idx) = reg_mapping.unwrap().get_reg(opnd.reg_opnd()) {
-                    reg_opnd(opnd, reg_idx)
-                } else {
-                    mem_opnd(opnd)
+                if let Some(reg_mapping_opnd) = opnd.get_reg_opnd() {
+                    if let Some(reg_idx) = reg_mapping.unwrap().get_reg(reg_mapping_opnd) {
+                        return reg_opnd(opnd, reg_idx);
+                    }
                 }
+                mem_opnd(opnd)
             }
             _ => unreachable!(),
         }

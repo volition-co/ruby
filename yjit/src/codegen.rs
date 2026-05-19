@@ -2544,8 +2544,13 @@ fn gen_getlocal_generic(
         // Write back an argument register to the stack. If the local variable
         // is an argument, it might have an allocated register, but if this ISEQ
         // is known to escape EP, the register shouldn't be used after this getlocal.
-        if level == 0 && asm.ctx.get_reg_mapping().get_reg(asm.local_opnd(ep_offset).reg_opnd()).is_some() {
-            asm.mov(local_opnd, asm.local_opnd(ep_offset));
+        if level == 0 {
+            let sp_local_opnd = asm.local_opnd(ep_offset);
+            if let Some(reg_opnd) = sp_local_opnd.get_reg_opnd() {
+                if asm.ctx.get_reg_mapping().get_reg(reg_opnd).is_some() {
+                    asm.mov(local_opnd, sp_local_opnd);
+                }
+            }
         }
 
         local_opnd
@@ -2636,14 +2641,18 @@ fn gen_setlocal_generic(
         let local_opnd = asm.local_opnd(ep_offset);
 
         // Allocate a register to the new local operand
-        asm.alloc_reg(local_opnd.reg_opnd());
+        if let Some(reg_opnd) = local_opnd.get_reg_opnd() {
+            asm.alloc_reg(reg_opnd);
+        }
         (flags_opnd, local_opnd)
     } else {
         // Make sure getlocal doesn't read a stale register. If the local variable
         // is an argument, it might have an allocated register, but if this ISEQ
         // is known to escape EP, the register shouldn't be used after this setlocal.
         if level == 0 {
-            asm.ctx.dealloc_reg(asm.local_opnd(ep_offset).reg_opnd());
+            if let Some(reg_opnd) = asm.local_opnd(ep_offset).get_reg_opnd() {
+                asm.ctx.dealloc_reg(reg_opnd);
+            }
         }
 
         // Load flags and the local for the level
