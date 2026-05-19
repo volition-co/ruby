@@ -242,7 +242,9 @@ impl Opnd
                     let last_idx = stack_size as i32 + VM_ENV_DATA_SIZE as i32 - 1;
                     assert!(last_idx <= idx, "Local index {} must be >= last local index {}", idx, last_idx);
                     assert!(idx <= last_idx + num_locals as i32, "Local index {} must be < last local index {} + local size {}", idx, last_idx, num_locals);
-                    RegOpnd::Local((last_idx + num_locals as i32 - idx) as u8)
+                    // Indices that don't fit in u8 are capped to u8::MAX, which is greater than MAX_CTX_LOCALS.
+                    let local_idx = last_idx + num_locals as i32 - idx;
+                    RegOpnd::Local(local_idx.try_into().unwrap_or(u8::MAX))
                 } else {
                     assert!(idx < stack_size as i32);
                     RegOpnd::Stack((stack_size as i32 - idx - 1) as u8)
